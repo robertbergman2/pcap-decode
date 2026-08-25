@@ -80,6 +80,7 @@ class Exporter:
             "extracted_files_count": len(files),
             "threat_summary": analysis_result.get("threat_summary"),
             "suspicious_domains": analysis_result.get("suspicious_domains"),
+            "raw_carving": analysis_result.get("raw_carving"),
             "processing_time_seconds": analysis_result.get("processing_time_seconds"),
             "extracted_files": saved_files_metadata,
         }

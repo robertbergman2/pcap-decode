@@ -113,6 +113,15 @@ def print_rich_results(console: "Console", result: dict, export_info: dict, min_
             dom_table.add_row(dom["domain"], f"{dom['entropy']:.2f}", str(dom["length"]))
         console.print(dom_table)
 
+    raw_carving = result.get("raw_carving") or {}
+    suppressed = raw_carving.get("raw_udp_packets_suppressed", 0)
+    if suppressed:
+        reasons = ", ".join(f"{k}={v}" for k, v in sorted(raw_carving.get("by_reason", {}).items()))
+        console.print(
+            f"\n[dim]Raw UDP carving suppressed for {suppressed} packet(s) ({reasons}). "
+            f"Telemetry ports and per-flow cap of {raw_carving.get('max_candidates_per_flow')} applied.[/]"
+        )
+
     if export_info.get("output_dir"):
         console.print(f"\n[bold green]Payloads and Forensic Report exported to:[/] [bold underline]{export_info['output_dir']}[/]")
         if export_info.get("report_path"):
@@ -148,6 +157,13 @@ def print_plain_results(result: dict, export_info: dict, min_level: ThreatLevel,
             print(f"           Flow:  {f.flow}")
         for ind in f.threat_indicators:
             print(f"           Alert: {ind}")
+
+    raw_carving = result.get("raw_carving") or {}
+    if raw_carving.get("raw_udp_packets_suppressed"):
+        reasons = ", ".join(f"{k}={v}" for k, v in sorted(raw_carving.get("by_reason", {}).items()))
+        print("-" * 70)
+        print(f"Raw UDP carving suppressed for {raw_carving['raw_udp_packets_suppressed']} packet(s) ({reasons})")
+
     print("=" * 70)
     if export_info.get("output_dir"):
         print(f"Export directory: {export_info['output_dir']}")
