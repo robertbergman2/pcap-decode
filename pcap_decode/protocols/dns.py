@@ -62,6 +62,9 @@ class DnsDecoder:
     def __init__(self):
         self.suspicious_domains: List[Dict[str, Any]] = []
 
+    def handles(self, packet: Packet) -> bool:
+        return packet.transport_proto in ("UDP", "TCP") and 53 in (packet.src_port, packet.dst_port)
+
     def process_packet(self, packet: Packet) -> List[Dict[str, Any]]:
         extracted: List[Dict[str, Any]] = []
         payload = packet.payload

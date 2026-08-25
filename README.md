@@ -21,6 +21,7 @@ High-performance, zero-external-dependency network forensic tool designed to car
   - **FTP**: Active and passive mode data channel tracking and file transfer extraction.
   - **SMB / SMB2 / SMB3**: File read/write reassembly and share transfer carving.
   - **DNS**: Query inspection, suspicious high-entropy tunneling detection, and TXT/NULL record payload staging extraction.
+  - **BACnet/IP (OT / building automation)**: BVLC, NPDU (including routed and forwarded NPDUs) and APDU decoding, identified by BVLC magic rather than port so devices configured off the standard 47808–47823 range are still decoded. Extracts `atomicReadFile` / `atomicWriteFile` payloads with chunk reassembly, builds a device inventory from `I-Am`, and flags control-plane activity (property writes to commandable objects, `reinitializeDevice`, `deviceCommunicationControl`, private transfers, routing-table changes, security errors, Who-Is enumeration).
   - **Raw Streams**: Direct carving of arbitrary TCP/UDP ports (reverse shells, Metasploit stagers, C2 beacons).
 
 - **Malware & File Signature Carving**:
@@ -39,6 +40,11 @@ High-performance, zero-external-dependency network forensic tool designed to car
   - Script heuristics (PowerShell bypass, DownloadString, Invoke-Expression, reverse shell pipes).
   - Threat scoring (0–100) and severity ranking (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`).
   - IOC extraction (embedded C2 URLs, IP addresses, domains).
+
+- **Raw UDP Carving Limits**:
+  - Continuous machine-to-machine chatter (telemetry, discovery, time sync, OT process I/O) does not carry transferable files, so emitting one candidate object per packet only floods the report — a 32-minute BACnet capture produces millions.
+  - Three gates bound it: traffic claimed by a protocol decoder is never raw-carved; a skip-list covers known telemetry ports (NTP, SNMP, mDNS, SSDP, DHCP, syslog, NetBIOS, LLMNR, KNXnet/IP, DNP3, PROFINET, EtherNet/IP); and a per-flow cap bounds protocols that are neither decoded nor listed.
+  - Suppression is always reported (never silent) under `raw_carving` in the JSON report and in the CLI summary.
 
 - **Export & Reporting**:
   - Safely extracts payload files with sanitized naming schemes (`detailed`, `hash`, `original`).

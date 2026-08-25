@@ -7,6 +7,7 @@ from pcap_decode.carver import FileCarver
 from pcap_decode.ip_reassembly import IpDefragmenter
 from pcap_decode.models import ExtractedFile, Packet, TcpStream, ThreatLevel
 from pcap_decode.pcap_reader import PcapReader
+from pcap_decode.protocols.bacnet import BacnetDecoder
 from pcap_decode.protocols.dns import DnsDecoder
 from pcap_decode.protocols.email import EmailDecoder
 from pcap_decode.protocols.ftp import FtpDecoder
@@ -27,9 +28,14 @@ class PcapDecoderEngine:
         self.ftp_decoder = FtpDecoder()
         self.smb_decoder = SmbDecoder()
         self.dns_decoder = DnsDecoder()
+        self.bacnet_decoder = BacnetDecoder()
         self.raw_decoder = RawStreamDecoder()
         self.carver = FileCarver()
         self.analyzer = MalwareAnalyzer()
+        # Decoders that claim UDP traffic by port or content. A claimed packet is never
+        # raw-carved, even when the decoder extracts nothing from it -- that is what keeps
+        # a telemetry protocol from becoming one candidate object per packet.
+        self.udp_decoders = [self.dns_decoder, self.bacnet_decoder]
 
     def decode_file(self, pcap_path: str) -> Dict[str, Any]:
         start_time = time.time()
@@ -47,10 +53,12 @@ class PcapDecoderEngine:
 
                 if pkt.transport_proto == "UDP":
                     udp_packets_count += 1
-                    dns_objs = self.dns_decoder.process_packet(pkt)
-                    if dns_objs:
-                        raw_candidates.extend(dns_objs)
-                    if self.carve_raw_streams and len(pkt.payload) >= 32:
+                    claimed = False
+                    for decoder in self.udp_decoders:
+                        if decoder.handles(pkt):
+                            claimed = True
+                            raw_candidates.extend(decoder.process_packet(pkt))
+                    if self.carve_raw_streams and not claimed:
                         raw_candidates.extend(self.raw_decoder.parse_udp_packet(pkt))
 
                 elif pkt.transport_proto == "TCP":
@@ -63,6 +71,8 @@ class PcapDecoderEngine:
                 tcp_streams_count += 1
                 self._process_stream(stream, raw_candidates)
 
+            raw_candidates.extend(self.bacnet_decoder.finalize())
+
         extracted_files = self._analyze_and_deduplicate(raw_candidates)
 
         elapsed = time.time() - start_time
@@ -74,6 +84,8 @@ class PcapDecoderEngine:
             "extracted_files_count": len(extracted_files),
             "extracted_files": extracted_files,
             "suspicious_domains": self.dns_decoder.suspicious_domains,
+            "bacnet": self.bacnet_decoder.summary(),
+            "raw_carving": self.raw_decoder.suppression_summary(),
             "processing_time_seconds": round(elapsed, 4),
             "threat_summary": self._compute_threat_summary(extracted_files),
         }

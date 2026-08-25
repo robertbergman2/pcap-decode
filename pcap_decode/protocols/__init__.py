@@ -1,3 +1,4 @@
+from pcap_decode.protocols.bacnet import BacnetDecoder
 from pcap_decode.protocols.dns import DnsDecoder
 from pcap_decode.protocols.email import EmailDecoder
 from pcap_decode.protocols.ftp import FtpDecoder
@@ -11,5 +12,6 @@ __all__ = [
     "FtpDecoder",
     "SmbDecoder",
     "DnsDecoder",
+    "BacnetDecoder",
     "RawStreamDecoder",
 ]
