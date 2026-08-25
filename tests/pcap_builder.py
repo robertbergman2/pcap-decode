@@ -47,6 +47,52 @@ def build_ethernet_frame(payload: bytes, ethertype: int = 0x0800) -> bytes:
     return dst_mac + src_mac + struct.pack("!H", ethertype) + payload
 
 
+def build_bacnet_app_tag(tag_number: int, value: bytes) -> bytes:
+    if len(value) < 5:
+        return bytes([(tag_number << 4) | len(value)]) + value
+    if len(value) < 254:
+        return bytes([(tag_number << 4) | 5, len(value)]) + value
+    return bytes([(tag_number << 4) | 5, 254]) + struct.pack("!H", len(value)) + value
+
+
+def build_bacnet_object_id(object_type: int, instance: int) -> bytes:
+    return build_bacnet_app_tag(12, struct.pack("!I", ((object_type & 0x3FF) << 22) | (instance & 0x3FFFFF)))
+
+
+def build_bvlc(npdu: bytes, function: int = 0x0A) -> bytes:
+    return struct.pack("!BBH", 0x81, function, 4 + len(npdu)) + npdu
+
+
+def build_npdu(apdu: bytes, expecting_reply: bool = False) -> bytes:
+    control = 0x04 if expecting_reply else 0x00
+    return bytes([0x01, control]) + apdu
+
+
+def build_bacnet_confirmed_request(service: int, body: bytes = b"", invoke_id: int = 1) -> bytes:
+    # PDU type 0, max-segments/max-APDU, invoke ID, service choice, then the service body.
+    apdu = bytes([0x00, 0x05, invoke_id, service]) + body
+    return build_bvlc(build_npdu(apdu, expecting_reply=True))
+
+
+def build_bacnet_unconfirmed_request(service: int, body: bytes = b"") -> bytes:
+    apdu = bytes([0x10, service]) + body
+    return build_bvlc(build_npdu(apdu), function=0x0B)
+
+
+def build_bacnet_complex_ack(service: int, body: bytes = b"", invoke_id: int = 1) -> bytes:
+    apdu = bytes([0x30, invoke_id, service]) + body
+    return build_bvlc(build_npdu(apdu))
+
+
+def build_bacnet_atomic_file_body(file_data: bytes, start_position: int = 0, end_of_file: bool = True) -> bytes:
+    # endOfFile BOOLEAN, then streamAccess: fileStartPosition INTEGER, fileData OCTET STRING.
+    return (
+        bytes([(1 << 4) | (1 if end_of_file else 0)])
+        + build_bacnet_app_tag(3, struct.pack("!b", start_position))
+        + build_bacnet_app_tag(6, file_data)
+    )
+
+
 def create_pcap_file(filepath: str, packets: List[Tuple[float, bytes]]):
     with open(filepath, "wb") as f:
         magic = b"\xd4\xc3\xb2\xa1"
